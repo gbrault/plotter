@@ -17,12 +17,14 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     	qcustomplot.cpp \
     myserver.cpp \
-    mythread.cpp
+    mythread.cpp \
+    helpwindow.cpp
 
 HEADERS  += mainwindow.hpp \
     		qcustomplot.h \
     myserver.h \
-    mythread.h
+    mythread.h \
+    helpwindow.hpp
 
 
 FORMS    += mainwindow.ui
