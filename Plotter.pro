@@ -32,4 +32,7 @@ RC_FILE = myapp.rc
 RESOURCES += \
     qdarkstyle/style.qrc
 
+DISTFILES += \
+    README.md
+
 
