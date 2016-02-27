@@ -17,8 +17,7 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     	qcustomplot.cpp \
     myserver.cpp \
-    mythread.cpp \
-    helpwindow.cpp
+    mythread.cpp
 
 HEADERS  += mainwindow.hpp \
     		qcustomplot.h \

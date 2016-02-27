@@ -75,6 +75,8 @@ private slots:
     void simulatedData();                                                                 // radom emit data in test mode
     void on_TCP_Connect_clicked();
 
+    void on_testButton_clicked();
+
 signals:
     void portOpenFail();                                                                  // Emitted when cannot open port
     void portOpenOK();                                                                    // Emitted when port is open
@@ -104,6 +106,7 @@ private:
     QTimer simulate;                                                                      // simulation pace timer
     MyServer *myServer;                                                                   // TCP Server
     void processData(QByteArray data);
+    void configurePlot();
 };
 
 

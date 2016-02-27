@@ -3,7 +3,8 @@
 **                                                                        **
 **                                                                        **
 **  Serial Port Plotter is a program for plotting integer data from       **
-**  serial port using Qt and QCustomPlot                                  **
+**  serial port or TCP/IP stream                                          **
+**  using Qt and QCustomPlot                                              **
 **                                                                        **
 **  This program is free software: you can redistribute it and/or modify  **
 **  it under the terms of the GNU General Public License as published by  **
@@ -21,8 +22,10 @@
 ****************************************************************************
 **           Author: Borislav                                             **
 **           Contact: b.kereziev@gmail.com                                **
-**           Date: 29.12.14                                               **
-****************************************************************************/
+**           Creation Date: 29.12.14                                      **
+**           Modified by Gilbert Brault                                   **
+**           Date: 26/02/2016                                             **
+***************************************************************************/
 
 #include "mainwindow.hpp"
 #include "ui_mainwindow.h"
@@ -37,9 +40,41 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     createUI();                                                                           // Create the UI
+    configurePlot();
+    serialPort = NULL;                                                                    // Set serial port pointer to NULL initially
+    ui->stopPlotButton->setEnabled(false);                                                // Plot button is disabled initially
+
+    connect(&updateTimer, SIGNAL(timeout()), this, SLOT(replot()));                       // Connect update timer to replot slot
+    updateTimer.start(50);
+    connected=false;
+    /*
+    ui->comboAxes->addItem("1");                                                          // Populate axes combo box; 3 axes maximum allowed
+    ui->comboAxes->addItem("2");
+    ui->comboAxes->addItem("3");
+    ui->comboAxes->setEnabled(enable);
+    */
+}
+/******************************************************************************************************************/
+
+
+/******************************************************************************************************************/
+/* Destructor */
+/******************************************************************************************************************/
+MainWindow::~MainWindow()
+{
+    if(serialPort != NULL) delete serialPort;
+    if(myServer!=NULL) delete myServer;
+    delete ui;
+}
+/******************************************************************************************************************/
+
+/******************************************************************************************************************/
+/**Create the GUI */
+/******************************************************************************************************************/
+void MainWindow::configurePlot()
+{
     ui->plot->setBackground(QBrush(QColor(48,47,47)));                                    // Background for the plot area
     setupPlot();                                                                          // Setup plot area
-    ui->stopPlotButton->setEnabled(false);                                                // Plot button is disabled initially
 
     ui->plot->setNotAntialiasedElements(QCP::aeAll);                                      // used for higher performance (see QCustomPlot real time example)
     QFont font;
@@ -70,25 +105,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->plot->setInteraction(QCP::iRangeZoom, true);
     // Slot for printing coordinates
     connect(ui->plot, SIGNAL(mouseRelease(QMouseEvent*)), this, SLOT(onMouseMoveInPlot(QMouseEvent*)));
-
-    serialPort = NULL;                                                                    // Set serial port pointer to NULL initially
-    connect(&updateTimer, SIGNAL(timeout()), this, SLOT(replot()));                       // Connect update timer to replot slot
-    updateTimer.start(50);
 }
-/******************************************************************************************************************/
-
-
-/******************************************************************************************************************/
-/* Destructor */
-/******************************************************************************************************************/
-MainWindow::~MainWindow()
-{
-    if(serialPort != NULL) delete serialPort;
-    if(myServer!=NULL) delete myServer;
-    delete ui;
-}
-/******************************************************************************************************************/
-
 
 /******************************************************************************************************************/
 /**Create the GUI */
@@ -127,9 +144,6 @@ void MainWindow::createUI()
     ui->comboStop->addItem("1 bit");                                                      // Populate stop bits combo box
     ui->comboStop->addItem("2 bits");
 
-    ui->comboAxes->addItem("1");                                                          // Populate axes combo box; 3 axes maximum allowed
-    ui->comboAxes->addItem("2");
-    ui->comboAxes->addItem("3");
 }
 /******************************************************************************************************************/
 
@@ -144,7 +158,6 @@ void MainWindow::enableControls(bool enable)
     ui->comboParity->setEnabled(enable);
     ui->comboPort->setEnabled(enable);
     ui->comboStop->setEnabled(enable);
-    ui->comboAxes->setEnabled(enable);
 }
 /******************************************************************************************************************/
 
@@ -274,29 +287,6 @@ void MainWindow::on_connectButton_clicked()
             serialPort = new QSerialPort(portInfo, 0);                                        // Use local instance of QSerialPort; does not crash
             openPort(portInfo, baudRate, dataBits, parity, stopBits);                         // Open serial port and connect its signals
         }
-    } else {
-        if(connected){
-            simulate.stop();
-            connected=false;
-            ui->connectButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
-            disconnect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
-            disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-            plotting = false;
-            updateTimer.stop();
-        } else {
-            simulate.setInterval(20);
-            simulate.setSingleShot(false);
-            connect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
-            connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-            simulate.start();
-            connected=true;
-            plotting = true;
-            updateTimer.start(50);
-            ui->connectButton->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("Connected!");                                      // Show message in status bar
-        }
-
     }
 }
 /******************************************************************************************************************/
@@ -538,9 +528,13 @@ void MainWindow::on_saveJPGButton_clicked()
 /******************************************************************************************************************/
 void MainWindow::on_resetPlotButton_clicked()
 {
+    disconnect(ui->plot, SIGNAL(mouseRelease(QMouseEvent*)), this, SLOT(onMouseMoveInPlot(QMouseEvent*)));
+    configurePlot();
+    /*
     ui->plot->yAxis->setRange(0, 4095);
     ui->plot->xAxis->setRange(dataPointNumber - NUMBER_OF_POINTS, dataPointNumber);
     ui->plot->yAxis->setTickStep(ui->spinYStep->value());
+    */
     ui->plot->replot();
 }
 /******************************************************************************************************************/
@@ -623,6 +617,7 @@ void MainWindow::on_TCP_Connect_clicked()
             ui->TCP_Connect->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
             ui->statusBar->showMessage("TCP Connected!");                                      // Show message in status bar
             connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+            ui->stopPlotButton->setEnabled(false);
         } else {
             if(myServer!=NULL){
                 myServer->disconnect();
@@ -634,7 +629,40 @@ void MainWindow::on_TCP_Connect_clicked()
                 ui->TCP_Connect->setText("Connect");                                            // Change Connect button text, to indicate disconnected
                 ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
                 disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+                ui->stopPlotButton->setEnabled(true);
             }
+        }
+    }
+}
+
+/******************************************************************************************************************/
+/* test mode connection */
+/******************************************************************************************************************/
+void MainWindow::on_testButton_clicked()
+{
+    if(ui->checkBox->isChecked()){
+        if(connected){
+            simulate.stop();
+            connected=false;
+            ui->testButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
+            ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
+            disconnect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
+            disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+            plotting = false;
+            updateTimer.stop();
+            ui->stopPlotButton->setEnabled(false);
+        } else {
+            simulate.setInterval(20);
+            simulate.setSingleShot(false);
+            connect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
+            connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+            simulate.start();
+            connected=true;
+            plotting = true;
+            updateTimer.start(50);
+            ui->testButton->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
+            ui->statusBar->showMessage("Connected!");                                      // Show message in status bar
+            ui->stopPlotButton->setEnabled(true);
         }
     }
 }
