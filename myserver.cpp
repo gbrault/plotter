@@ -28,9 +28,14 @@ void MyServer::incomingConnection(qintptr socketDescriptor)
 
     MyThread *thread = new MyThread(socketDescriptor, this);
 
+
+
     // connect signal/slot
     // once a thread is not needed, it will be beleted later
     connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
 
+
     thread->start();
+
 }
+

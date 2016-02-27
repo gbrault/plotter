@@ -14,6 +14,7 @@ public:
     explicit MyThread(qintptr ID, QObject *parent = 0);
 
     void run();
+    ~MyThread();
 
 signals:
     void error(QTcpSocket::SocketError socketerror);

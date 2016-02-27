@@ -376,22 +376,24 @@ void MainWindow::on_stopPlotButton_clicked()
 /******************************************************************************************************************/
 void MainWindow::onNewDataArrived(QStringList newData)
 {
+    int value0 = newData[0].toInt();
+
     if(plotting) {
         int dataListSize = newData.size();                                                    // Get size of received list
         dataPointNumber++;  // Increment data number
 
         if(numberOfAxes == 1 && dataListSize > 0) {                                           // Add data to graphs according to number of axes
-            ui->plot->graph(0)->addData(dataPointNumber, newData[0].toInt());                 // Add data to Graph 0
+            ui->plot->graph(0)->addData(dataPointNumber, value0);                 // Add data to Graph 0
             ui->plot->graph(0)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);           // Remove data from graph 0
         } else if(numberOfAxes == 2) {
-            ui->plot->graph(0)->addData(dataPointNumber, newData[0].toInt());
+            ui->plot->graph(0)->addData(dataPointNumber, value0);
             ui->plot->graph(0)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             if(dataListSize > 1){
                 ui->plot->graph(1)->addData(dataPointNumber, newData[1].toInt());
                 ui->plot->graph(1)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             }
         } else if(numberOfAxes == 3) {
-            ui->plot->graph(0)->addData(dataPointNumber,newData[0].toInt());
+            ui->plot->graph(0)->addData(dataPointNumber,value0);
             ui->plot->graph(0)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             if(dataListSize > 1) {
                 ui->plot->graph(1)->addData(dataPointNumber, newData[1].toInt());
@@ -443,7 +445,7 @@ void MainWindow::readData()
 /* Read data for TCP port */
 /******************************************************************************************************************/
 void  MainWindow::readDataTcp(QByteArray Data){
-    processData(Data);
+        processData(Data);
 }
 
 /******************************************************************************************************************/

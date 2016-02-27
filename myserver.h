@@ -13,6 +13,7 @@ public:
     explicit MyServer(QObject *parent = 0);
     void startServer();
     QString port;
+
 signals:
 
 public slots:

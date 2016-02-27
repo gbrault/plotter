@@ -45,6 +45,9 @@ void MyThread::run()
     exec();
 }
 
+MyThread::~MyThread(){
+}
+
 void MyThread::readyRead()
 {
     // get the information
@@ -68,3 +71,4 @@ void MyThread::disconnected()
     socket->deleteLater();
     exit(0);
 }
+
