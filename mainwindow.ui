@@ -30,7 +30,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="plotter">
        <attribute name="title">
@@ -644,7 +644,7 @@
              <item>
               <widget class="QLineEdit" name="TCP_port">
                <property name="text">
-                <string>8080</string>
+                <string>32000</string>
                </property>
               </widget>
              </item>

@@ -42,6 +42,7 @@ MainWindow::MainWindow(QWidget *parent) :
     createUI();                                                                           // Create the UI
     configurePlot();
     serialPort = NULL;                                                                    // Set serial port pointer to NULL initially
+    myServer=NULL;                                                                        // Set TCP SERVER pointer to NULL initially
     ui->stopPlotButton->setEnabled(false);                                                // Plot button is disabled initially
 
     connect(&updateTimer, SIGNAL(timeout()), this, SLOT(replot()));                       // Connect update timer to replot slot
@@ -617,7 +618,7 @@ void MainWindow::on_TCP_Connect_clicked()
             ui->TCP_Connect->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
             ui->statusBar->showMessage("TCP Connected!");                                      // Show message in status bar
             connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-            ui->stopPlotButton->setEnabled(false);
+            ui->stopPlotButton->setEnabled(true);
         } else {
             if(myServer!=NULL){
                 myServer->disconnect();
@@ -629,7 +630,7 @@ void MainWindow::on_TCP_Connect_clicked()
                 ui->TCP_Connect->setText("Connect");                                            // Change Connect button text, to indicate disconnected
                 ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
                 disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-                ui->stopPlotButton->setEnabled(true);
+                ui->stopPlotButton->setEnabled(false);
             }
         }
     }

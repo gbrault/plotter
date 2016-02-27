@@ -22,8 +22,7 @@ SOURCES += main.cpp\
 HEADERS  += mainwindow.hpp \
     		qcustomplot.h \
     myserver.h \
-    mythread.h \
-    helpwindow.hpp
+    mythread.h
 
 
 FORMS    += mainwindow.ui
