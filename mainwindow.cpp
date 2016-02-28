@@ -54,6 +54,13 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->comboAxes->addItem("3");
     ui->comboAxes->setEnabled(enable);
     */
+    mFirst="";
+    mMiddle="";
+    mLast="";
+    lastTime = duration_cast< milliseconds >(
+                system_clock::now().time_since_epoch()
+            );
+    lastdataPointNumber=0;
 }
 /******************************************************************************************************************/
 
@@ -116,7 +123,7 @@ void MainWindow::createUI()
     if(QSerialPortInfo::availablePorts().size() == 0) {                                   // Check if there are any ports at all; if not, disable controls and return
         enableControls(false);
         ui->connectButton->setEnabled(false);
-        ui->statusBar->showMessage("No ports detected.");
+        writeStatus("No ports detected.",last);
         ui->saveJPGButton->setEnabled(false);
         return;
     }
@@ -229,8 +236,8 @@ void MainWindow::openPort(QSerialPortInfo portInfo, int baudRate, QSerialPort::D
 /******************************************************************************************************************/
 void MainWindow::on_comboPort_currentIndexChanged(const QString &arg1)
 {
-    QSerialPortInfo selectedPort(arg1);                                                   // Dislplay info for selected port
-    ui->statusBar->showMessage(selectedPort.description());
+    QSerialPortInfo selectedPort(arg1);                                                   // Dislplay info for selected port    
+    writeStatus(selectedPort.description(),last);
 }
 /******************************************************************************************************************/
 
@@ -247,7 +254,7 @@ void MainWindow::on_connectButton_clicked()
             delete serialPort;                                                                // Delete the pointer
             serialPort = NULL;                                                                // Assign NULL to dangling pointer
             ui->connectButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
+            writeStatus("Disconnected!",last);                                               // Show message in status bar
             connected = false;                                                                // Set connected status flag to false
             plotting = false;                                                                 // Not plotting anymore
             receivedData.clear();                                                             // Clear received string
@@ -300,7 +307,7 @@ void MainWindow::portOpenedSuccess()
 {
     //qDebug() << "Port opened signal received!";
     ui->connectButton->setText("Disconnect");                                             // Change buttons
-    ui->statusBar->showMessage("Connected!");
+    writeStatus("Connected!",last);
     enableControls(false);                                                                // Disable controls if port is open
     ui->stopPlotButton->setText("Stop Plot");                                             // Enable button for stopping plot
     ui->stopPlotButton->setEnabled(true);
@@ -319,7 +326,7 @@ void MainWindow::portOpenedSuccess()
 void MainWindow::portOpenedFail()
 {
     //qDebug() << "Port cannot be open signal received!";
-    ui->statusBar->showMessage("Cannot open port!");
+    writeStatus("Cannot open port!",last);
 }
 /******************************************************************************************************************/
 
@@ -345,6 +352,19 @@ void MainWindow::onPortClosed()
 /******************************************************************************************************************/
 void MainWindow::replot()
 {
+    if(dataPointNumber!=lastdataPointNumber){
+        milliseconds now = duration_cast< milliseconds >(
+                    system_clock::now().time_since_epoch()
+                    );
+        milliseconds duration = now-lastTime;
+        double speed = (((dataPointNumber-lastdataPointNumber) * 1.0)/(duration.count() * 1.0))*1000;
+        lastdataPointNumber = dataPointNumber;
+        lastTime=now;
+        char buf[20];
+        sprintf(buf,"%5.3f",speed);
+        QString message(buf);
+        writeStatus(message,middle);
+    }
     if(connected) {
         ui->plot->xAxis->setRange(dataPointNumber - NUMBER_OF_POINTS, dataPointNumber);
         ui->plot->replot();
@@ -445,7 +465,14 @@ void MainWindow::readData()
 /* Read data for TCP port */
 /******************************************************************************************************************/
 void  MainWindow::readDataTcp(QByteArray Data){
-        processData(Data);
+    int i;
+    QByteArray data;
+
+    for(i=0;i<Data.count();i++){
+        data.clear();
+        data.append(Data.at(i));
+        processData(data);
+    }
 }
 
 /******************************************************************************************************************/
@@ -495,11 +522,11 @@ void MainWindow::processData(QByteArray data)
 void MainWindow::on_comboAxes_currentIndexChanged(int index)
 {
     if(index == 0) {
-        ui->statusBar->showMessage("Axis 1: Red");
+        writeStatus("Axis 1: Red",last);
     } else if(index == 1) {
-        ui->statusBar->showMessage("Axis 1: Red; Axis 2: Yellow");
+        writeStatus("Axis 1: Red; Axis 2: Yellow",last);
     } else {
-        ui->statusBar->showMessage("Axis 1: Red; Axis 2: Yellow; Axis 3: Green");
+        writeStatus("Axis 1: Red; Axis 2: Yellow; Axis 3: Green",last);
     }
 }
 /******************************************************************************************************************/
@@ -552,7 +579,7 @@ void MainWindow::onMouseMoveInPlot(QMouseEvent *event)
     int yy = ui->plot->yAxis->pixelToCoord(event->y());
     QString coordinates("X: %1 Y: %2");
     coordinates = coordinates.arg(xx).arg(yy);
-    ui->statusBar->showMessage(coordinates);
+    writeStatus(coordinates,first);
 }
 /******************************************************************************************************************/
 
@@ -618,7 +645,7 @@ void MainWindow::on_TCP_Connect_clicked()
             plotting = true;
             updateTimer.start(50);
             ui->TCP_Connect->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("TCP Connected!");                                      // Show message in status bar
+            writeStatus("TCP Connected!",last);                                      // Show message in status bar
             connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
             ui->stopPlotButton->setEnabled(true);
         } else {
@@ -630,7 +657,7 @@ void MainWindow::on_TCP_Connect_clicked()
                 plotting = false;
                 updateTimer.stop();
                 ui->TCP_Connect->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-                ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
+                writeStatus("Disconnected!",last);                                      // Show message in status bar
                 disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
                 ui->stopPlotButton->setEnabled(false);
             }
@@ -648,7 +675,7 @@ void MainWindow::on_testButton_clicked()
             simulate.stop();
             connected=false;
             ui->testButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("Disconnected!");                                      // Show message in status bar
+            writeStatus("Disconnected!",last);                                      // Show message in status bar
             disconnect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
             disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
             plotting = false;
@@ -664,8 +691,32 @@ void MainWindow::on_testButton_clicked()
             plotting = true;
             updateTimer.start(50);
             ui->testButton->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
-            ui->statusBar->showMessage("Connected!");                                      // Show message in status bar
+            writeStatus("Connected!",last);                                      // Show message in status bar
             ui->stopPlotButton->setEnabled(true);
         }
     }
+}
+
+/******************************************************************************************************************/
+/* Write Status line */
+/******************************************************************************************************************/
+void MainWindow::writeStatus(QString message, Status type){
+    QString sbmessage;
+    switch(type){
+    case first:
+        mFirst = message;
+        break;
+    case middle:
+        mMiddle = message;
+        break;
+    case last:
+        mLast = message;
+        break;
+    }
+    sbmessage=mFirst;
+    sbmessage.append("   ");
+    sbmessage.append(mMiddle);
+    sbmessage.append("   ");
+    sbmessage.append(mLast);
+    ui->statusBar->showMessage(sbmessage);
 }

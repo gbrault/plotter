@@ -31,6 +31,7 @@
 #include <QtSerialPort/QtSerialPort>
 #include <QSerialPortInfo>
 #include "myserver.h"
+#include <chrono>
 
 #define START_MSG       '$'
 #define END_MSG         ';'
@@ -39,6 +40,7 @@
 #define IN_MESSAGE      2
 #define UNDEFINED       3
 
+using namespace std::chrono;
 namespace Ui {
     class MainWindow;
 }
@@ -89,6 +91,8 @@ private:
     bool connected;                                                                       // Status connection variable
     bool plotting;                                                                        // Status plotting variable
     int dataPointNumber;                                                                  // Keep track of data points
+    milliseconds lastTime;                                                                // when the program started
+    int lastdataPointNumber;
     QTimer updateTimer;                                                                   // Timer used for replotting the plot
     int numberOfAxes;                                                                     // Number of axes for the plot
     QTime timeOfFirstData;                                                                // Record the time of the first data point
@@ -107,6 +111,9 @@ private:
     MyServer *myServer;                                                                   // TCP Server
     void processData(QByteArray data);
     void configurePlot();
+    enum Status {first,middle,last};
+    void writeStatus(QString message, Status type);
+    QString mFirst,mMiddle,mLast;
 };
 
 
