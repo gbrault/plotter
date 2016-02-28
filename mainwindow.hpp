@@ -32,6 +32,7 @@
 #include <QSerialPortInfo>
 #include "myserver.h"
 #include <chrono>
+#include "audiooutput.h"
 
 #define START_MSG       '$'
 #define END_MSG         ';'
@@ -79,6 +80,8 @@ private slots:
 
     void on_testButton_clicked();
 
+    void on_checkBoxAudioEnable_clicked(bool checked);
+
 signals:
     void portOpenFail();                                                                  // Emitted when cannot open port
     void portOpenOK();                                                                    // Emitted when port is open
@@ -111,9 +114,11 @@ private:
     MyServer *myServer;                                                                   // TCP Server
     void processData(QByteArray data);
     void configurePlot();
-    enum Status {first,middle,last};
+    enum Status {first,middle,last,after};
     void writeStatus(QString message, Status type);
-    QString mFirst,mMiddle,mLast;
+    QString mFirst,mMiddle,mLast,mAfter;
+    QString targetConsole;
+    AudioOutput *myAudioOutput;
 };
 
 

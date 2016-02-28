@@ -6,6 +6,7 @@
 
 QT       += core gui network
 QT       += serialport
+QT += multimedia
 CONFIG += c++11
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
@@ -17,12 +18,14 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     	qcustomplot.cpp \
     myserver.cpp \
-    mythread.cpp
+    mythread.cpp \
+    audiooutput.cpp
 
 HEADERS  += mainwindow.hpp \
     		qcustomplot.h \
     myserver.h \
-    mythread.h
+    mythread.h \
+    audiooutput.h
 
 
 FORMS    += mainwindow.ui

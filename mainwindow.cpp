@@ -57,10 +57,13 @@ MainWindow::MainWindow(QWidget *parent) :
     mFirst="";
     mMiddle="";
     mLast="";
+    mAfter="";
     lastTime = duration_cast< milliseconds >(
                 system_clock::now().time_since_epoch()
             );
     lastdataPointNumber=0;
+    targetConsole="";
+    myAudioOutput=NULL;
 }
 /******************************************************************************************************************/
 
@@ -458,7 +461,8 @@ void MainWindow::readData()
 {
     if(serialPort->bytesAvailable()) {                                                    // If any bytes are available
         QByteArray Data = serialPort->readAll();                                          // Read all data in QByteArray
-        readDataTcp(Data);
+        if(Data.count()!=0)
+            readDataTcp(Data);
     }
 }
 /******************************************************************************************************************/
@@ -488,7 +492,12 @@ void MainWindow::processData(QByteArray data)
             if(temp == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
                 STATE = IN_MESSAGE;
                 receivedData.clear();                                             // Clear temporary QString that holds the message
+                if(targetConsole.count()!=0)
+                    writeStatus(targetConsole,after);
+                targetConsole.clear();
                 break;                                                            // Break out of the switch
+            } else {
+                targetConsole.append(temp);
             }
             break;
         case IN_MESSAGE:                                                          // If state is IN_MESSAGE
@@ -710,11 +719,65 @@ void MainWindow::writeStatus(QString message, Status type){
     case last:
         mLast = message;
         break;
+    case after:
+        mAfter = message;
+        break;
     }
     sbmessage=mFirst;
     sbmessage.append("   ");
     sbmessage.append(mMiddle);
     sbmessage.append("   ");
     sbmessage.append(mLast);
+    sbmessage.append("   ");
+    sbmessage.append(mAfter);
     ui->statusBar->showMessage(sbmessage);
+}
+
+/******************************************************************************************************************/
+/* Set or Reset Audio taping */
+/******************************************************************************************************************/
+void MainWindow::on_checkBoxAudioEnable_clicked(bool checked)
+{
+    if(checked!=0){
+        myAudioOutput = new AudioOutput(this);
+        // configure it
+        int channelCount;
+        int sampleRate;
+        int sampleSize;
+        QAudioFormat::Endian byteOrder;
+        QAudioFormat::SampleType sampleType;
+        int buffersize;
+        channelCount=ui->spinBoxAudioChannels->value();
+        sampleRate=(ui->comboBoxAudioFreq->currentText().toInt())*1000;
+        sampleSize=ui->comboBoxAudioSize->currentText().toInt();
+        switch(ui->comboBoxAudioEndian->currentText()){
+        case "little":
+            byteOrder = QAudioFormat::Endian::LittleEndian;
+            break;
+        case "big":
+            byteOrder = QAudioFormat::Endian::BigEndian;
+            break;
+        }
+        switch(ui->comboBoxAudioType->currentText()){
+        case "Unknown":
+            sampleType = QAudioFormat::SampleType::Unknown;
+            break;
+        case "SignedInt":
+            sampleType = QAudioFormat::SampleType::SignedInt;
+            break;
+        case "UnSignedInt":
+            sampleType = QAudioFormat::SampleType::UnSignedInt;
+            break;
+        case "Float":
+            sampleType = QAudioFormat::SampleType::Float;
+            break;
+        }
+        buffersize = ui->spinBoxAudioBuffer->value()*1024;
+        myAudioOutput->configure(channelCount,sampleRate,sampleSize,byteOrder,sampleType,buffersize);
+    } else{
+        if (myAudioOutput!=NULL){
+            myAudioOutput->close();
+            delete myAudioOutput;
+        }
+    }
 }
