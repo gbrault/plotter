@@ -457,8 +457,8 @@ void MainWindow::on_spinAxesMax_valueChanged(int arg1)
 void MainWindow::readData()
 {
     if(serialPort->bytesAvailable()) {                                                    // If any bytes are available
-        QByteArray data = serialPort->readAll();                                          // Read all data in QByteArray
-        processData(data);
+        QByteArray Data = serialPort->readAll();                                          // Read all data in QByteArray
+        readDataTcp(Data);
     }
 }
 /******************************************************************************************************************/
@@ -480,34 +480,32 @@ void  MainWindow::readDataTcp(QByteArray Data){
 /******************************************************************************************************************/
 void MainWindow::processData(QByteArray data)
 {
+    char temp;
     if(!data.isEmpty()) {                                                             // If the byte array is not empty
-        char *temp = data.data();                                                     // Get a '\0'-terminated char* to the data
-
-        for(int i = 0; temp[i] != '\0'; i++) {                                        // Iterate over the char*
-            switch(STATE) {                                                           // Switch the current state of the message
-            case WAIT_START:                                                          // If waiting for start [$], examine each char
-                if(temp[i] == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
-                    STATE = IN_MESSAGE;
-                    receivedData.clear();                                             // Clear temporary QString that holds the message
-                    break;                                                            // Break out of the switch
-                }
-                break;
-            case IN_MESSAGE:                                                          // If state is IN_MESSAGE
-                if(temp[i] == END_MSG) {                                              // If char examined is ;, switch state to END_MSG
-                    STATE = WAIT_START;
-                    QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
-                    emit newData(incomingData);                                       // Emit signal for data received with the list
-                    break;
-                }
-                else if(isdigit(temp[i]) || isspace(temp[i]) ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
-                    receivedData.append(temp[i]);
-                }
-                else if( temp[i]=='-' || temp[i]=='+' ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
-                    receivedData.append(temp[i]);
-                }
-                break;
-            default: break;
+        temp = (uint8_t)(data.at(0));                                                     // Get a '\0'-terminated char* to the data                                        // Iterate over the char*
+        switch(STATE) {                                                           // Switch the current state of the message
+        case WAIT_START:                                                          // If waiting for start [$], examine each char
+            if(temp == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
+                STATE = IN_MESSAGE;
+                receivedData.clear();                                             // Clear temporary QString that holds the message
+                break;                                                            // Break out of the switch
             }
+            break;
+        case IN_MESSAGE:                                                          // If state is IN_MESSAGE
+            if(temp == END_MSG) {                                              // If char examined is ;, switch state to END_MSG
+                STATE = WAIT_START;
+                QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
+                emit newData(incomingData);                                       // Emit signal for data received with the list
+                break;
+            }
+            else if(((temp>='0') && (temp<='9')) || temp==' ' ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
+                receivedData.append(temp);
+            }
+            else if( temp=='-' || temp=='+' ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
+                receivedData.append(temp);
+            }
+            break;
+        default: break;
         }
     }
 
