@@ -52,6 +52,16 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_6">
            <item>
+            <widget class="QSlider" name="horizontalSliderAMPL">
+             <property name="value">
+              <number>1</number>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
             <widget class="QPushButton" name="stopPlotButton">
              <property name="minimumSize">
               <size>
@@ -99,7 +109,7 @@
           <x>20</x>
           <y>10</y>
           <width>151</width>
-          <height>261</height>
+          <height>231</height>
          </rect>
         </property>
         <property name="title">
@@ -339,9 +349,9 @@
         <property name="geometry">
          <rect>
           <x>20</x>
-          <y>280</y>
+          <y>250</y>
           <width>151</width>
-          <height>301</height>
+          <height>211</height>
          </rect>
         </property>
         <property name="title">
@@ -611,6 +621,20 @@
              </item>
             </layout>
            </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_26">
+             <item>
+              <widget class="QCheckBox" name="checkBoxAutoScale">
+               <property name="text">
+                <string>AutoScale</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
           </layout>
          </item>
         </layout>
@@ -618,9 +642,9 @@
        <widget class="QGroupBox" name="tcpConfiguration">
         <property name="geometry">
          <rect>
-          <x>180</x>
-          <y>10</y>
-          <width>195</width>
+          <x>20</x>
+          <y>470</y>
+          <width>141</width>
           <height>101</height>
          </rect>
         </property>
@@ -663,52 +687,120 @@
         <property name="geometry">
          <rect>
           <x>180</x>
-          <y>120</y>
-          <width>191</width>
-          <height>101</height>
+          <y>10</y>
+          <width>171</width>
+          <height>251</height>
          </rect>
         </property>
         <property name="title">
          <string>TEST</string>
         </property>
-        <widget class="QWidget" name="horizontalLayoutWidget">
+        <widget class="QWidget" name="verticalLayoutWidget_3">
          <property name="geometry">
           <rect>
-           <x>20</x>
+           <x>10</x>
            <y>30</y>
-           <width>160</width>
-           <height>25</height>
+           <width>151</width>
+           <height>211</height>
           </rect>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <layout class="QVBoxLayout" name="verticalLayout_6">
           <item>
-           <widget class="QCheckBox" name="checkBox">
-            <property name="text">
-             <string>Test</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <item>
+             <widget class="QCheckBox" name="checkBox">
+              <property name="text">
+               <string>Test</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
-         </layout>
-        </widget>
-        <widget class="QWidget" name="horizontalLayoutWidget_2">
-         <property name="geometry">
-          <rect>
-           <x>20</x>
-           <y>60</y>
-           <width>160</width>
-           <height>30</height>
-          </rect>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
-           <widget class="QPushButton" name="testButton">
-            <property name="text">
-             <string>Connect</string>
-            </property>
-           </widget>
+           <layout class="QVBoxLayout" name="verticalLayout_7">
+            <item>
+             <widget class="QRadioButton" name="radioButtonTESTRadom">
+              <property name="text">
+               <string>Random</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">buttonGroup</string>
+              </attribute>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="radioButtonTESTSine">
+              <property name="text">
+               <string>Sine</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">buttonGroup</string>
+              </attribute>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_25">
+            <item>
+             <widget class="QLabel" name="label_11">
+              <property name="text">
+               <string>Frequency</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinBoxTESTFreq">
+              <property name="maximum">
+               <number>20000</number>
+              </property>
+              <property name="singleStep">
+               <number>10</number>
+              </property>
+              <property name="value">
+               <number>440</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_24">
+            <item>
+             <widget class="QLabel" name="label_12">
+              <property name="text">
+               <string>Amplitude</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinBoxTESTAmplitude">
+              <property name="maximum">
+               <number>5000000</number>
+              </property>
+              <property name="value">
+               <number>250000</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QPushButton" name="testButton">
+              <property name="text">
+               <string>Connect</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
@@ -716,10 +808,10 @@
        <widget class="QGroupBox" name="AUDIO">
         <property name="geometry">
          <rect>
-          <x>180</x>
-          <y>230</y>
+          <x>360</x>
+          <y>10</y>
           <width>191</width>
-          <height>241</height>
+          <height>251</height>
          </rect>
         </property>
         <property name="title">
@@ -729,9 +821,9 @@
          <property name="geometry">
           <rect>
            <x>10</x>
-           <y>20</y>
+           <y>30</y>
            <width>171</width>
-           <height>201</height>
+           <height>211</height>
           </rect>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -910,7 +1002,74 @@
                <number>1024</number>
               </property>
               <property name="value">
-               <number>1024</number>
+               <number>16</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+       <widget class="QGroupBox" name="groupBox">
+        <property name="geometry">
+         <rect>
+          <x>170</x>
+          <y>280</y>
+          <width>181</width>
+          <height>131</height>
+         </rect>
+        </property>
+        <property name="title">
+         <string>AMPLIFIER</string>
+        </property>
+        <widget class="QWidget" name="verticalLayoutWidget_2">
+         <property name="geometry">
+          <rect>
+           <x>10</x>
+           <y>30</y>
+           <width>151</width>
+           <height>91</height>
+          </rect>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_22">
+            <item>
+             <widget class="QLabel" name="label_9">
+              <property name="text">
+               <string>Multiplier Span</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinBoxAMPMult">
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="value">
+               <number>10</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_23">
+            <item>
+             <widget class="QLabel" name="label_10">
+              <property name="text">
+               <string>Step</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinBoxAMPLStep">
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="value">
+               <number>1</number>
               </property>
              </widget>
             </item>
@@ -1049,4 +1208,7 @@ p, li { white-space: pre-wrap; }
  </customwidgets>
  <resources/>
  <connections/>
+ <buttongroups>
+  <buttongroup name="buttonGroup"/>
+ </buttongroups>
 </ui>

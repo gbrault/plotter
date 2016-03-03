@@ -64,6 +64,10 @@ MainWindow::MainWindow(QWidget *parent) :
     lastdataPointNumber=0;
     targetConsole="";
     myAudioOutput=NULL;
+    audioBuffer.clear();
+    lock=0;
+    simulatePeriod=10;
+    m_Source = NULL;
 }
 /******************************************************************************************************************/
 
@@ -94,8 +98,8 @@ void MainWindow::configurePlot()
     ui->plot->yAxis->setTickLabelFont(font);
     ui->plot->legend->setFont(font);
 
-    ui->plot->yAxis->setAutoTickStep(false);                                              // User can change tick step with a spin box
-    ui->plot->yAxis->setTickStep(ui->spinYStep->value());                                                    // Set initial tick step
+    ui->plot->yAxis->setAutoTickStep(true);                                              // User can change tick step with a spin box
+    // ui->plot->yAxis->setTickStep(ui->spinYStep->value());                                                    // Set initial tick step
     ui->plot->xAxis->setTickLabelColor(QColor(170,170,170));                              // Tick labels color
     ui->plot->yAxis->setTickLabelColor(QColor(170,170,170));                              // See QCustomPlot examples / styled demo
     ui->plot->xAxis->grid()->setPen(QPen(QColor(170,170,170), 1, Qt::DotLine));
@@ -181,7 +185,9 @@ void MainWindow::setupPlot()
     ui->plot->clearItems();                                                              // Remove everything from the plot
 
     numberOfAxes = ui->comboAxes->currentText().toInt();                                 // Get number of axes from the user combo
-    ui->plot->yAxis->setRange(ui->spinAxesMin->value(), ui->spinAxesMax->value());       // Set lower and upper plot range    
+    ui->plot->yAxis->setRange(ui->spinAxesMin->value(), ui->spinAxesMax->value());       // Set lower and upper plot range
+    min = ui->spinAxesMin->value();
+    max = ui->spinAxesMax->value();
     ui->plot->yAxis->setTickStep(ui->spinYStep->value());                                // Set tick step according to user spin box
     ui->plot->xAxis->setRange(0, NUMBER_OF_POINTS);                                      // Set x axis range for specified number of points
 
@@ -399,9 +405,20 @@ void MainWindow::on_stopPlotButton_clicked()
 /******************************************************************************************************************/
 void MainWindow::onNewDataArrived(QStringList newData)
 {
-    int value0 = newData[0].toInt();
-
-    if(plotting) {
+    if(plotting) { // to-do: multiple plot...
+        int value0 = newData[0].toInt() * ui->horizontalSliderAMPL->value();
+        if (min>value0){
+            min=value0;
+            if(ui->checkBoxAutoScale->isChecked()){
+                ui->plot->yAxis->setRangeLower(min);
+            }
+        }
+        if (max<value0){
+            max = value0;
+            if(ui->checkBoxAutoScale->isChecked()){
+                ui->plot->yAxis->setRangeUpper(max);
+            }
+        }
         int dataListSize = newData.size();                                                    // Get size of received list
         dataPointNumber++;  // Increment data number
 
@@ -544,7 +561,8 @@ void MainWindow::on_comboAxes_currentIndexChanged(int index)
 /******************************************************************************************************************/
 void MainWindow::on_spinYStep_valueChanged(int arg1)
 {
-    ui->plot->yAxis->setTickStep(arg1);
+    // ui->plot->yAxis->setTickStep(arg1);
+    Q_UNUSED(arg1);
     ui->plot->replot();
 }
 /******************************************************************************************************************/
@@ -625,16 +643,34 @@ void MainWindow::on_checkBox_clicked()
 /******************************************************************************************************************/
 void MainWindow::simulatedData()
 {
-    int i1 = rand();
-    int i2 = rand();
+    // Display curve
+    QVector<int> display;
+    m_Source->readDisplay(&display, simulatePeriod);
+    for(int i=0; i< display.count();i++){
+        char buf[100];
+        sprintf(buf,"%d",display.at(i));
+        receivedData.clear();
+        receivedData.append(buf);
+        QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
+        emit newData(incomingData);                                       // Emit signal for data received with the list
+    }
 
-    if (i1>RAND_MAX/2) receivedData="+"; else receivedData="-";
-    char buf[20];
-    sprintf(buf,"%d",i2);
-    receivedData.append(buf);
+    // plays Audio
+    if(ui->checkBoxAudioEnable->isChecked()){
+        int bytes = myAudioOutput->bytesFree();
+        if(bytes!=0){
+            int AudioDuration = myAudioOutput->durationForBytes(bytes)/1000;
+            QByteArray audio;
+            audio.resize(bytes);
+            audio.clear();
+            m_Source->readAudio(&audio,AudioDuration);
+            myAudioOutput->writeData(audio);
+        }
+    }
 
-    QStringList incomingData = receivedData.split(' ');
-    emit newData(incomingData);
+    char buf[100];
+    sprintf(buf,"d=%d,a=%d",m_Source->displayTime,m_Source->AudioTime);
+    writeStatus(buf,after);
 }
 
 /******************************************************************************************************************/
@@ -651,7 +687,7 @@ void MainWindow::on_TCP_Connect_clicked()
             connected=true;
             plotting = true;
             updateTimer.start(50);
-            ui->TCP_Connect->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
+            ui->TCP_Connect->setText("DisConnect");                                  // Change Connect button text, to indicate disconnected
             writeStatus("TCP Connected!",last);                                      // Show message in status bar
             connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
             ui->stopPlotButton->setEnabled(true);
@@ -681,7 +717,7 @@ void MainWindow::on_testButton_clicked()
         if(connected){
             simulate.stop();
             connected=false;
-            ui->testButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
+            ui->testButton->setText("Connect");                                     // Change Connect button text, to indicate disconnected
             writeStatus("Disconnected!",last);                                      // Show message in status bar
             disconnect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
             disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
@@ -689,7 +725,24 @@ void MainWindow::on_testButton_clicked()
             updateTimer.stop();
             ui->stopPlotButton->setEnabled(false);
         } else {
-            simulate.setInterval(20);
+            // create the Audio Source
+            QAudioFormat format;
+            audioParamaters p;
+            readAudioparameter(&p);
+            format.setByteOrder(p.byteOrder);
+            format.setChannelCount(p.channelCount);
+            format.setSampleRate(p.sampleRate);
+            format.setSampleSize(p.sampleSize);
+            format.setSampleType(p.sampleType);
+            format.setCodec("audio/pcm");
+            int Type=0;
+            if(ui->radioButtonTESTRadom->isChecked()){
+                Type=1;
+            }
+            max=min=0;
+            if (m_Source!=NULL) delete m_Source;
+            m_Source = new Source(ui->spinBoxTESTFreq->value(),simulatePeriod,ui->spinBoxTESTAmplitude->value(),format);
+            simulate.setInterval(simulatePeriod);
             simulate.setSingleShot(false);
             connect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
             connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
@@ -697,7 +750,7 @@ void MainWindow::on_testButton_clicked()
             connected=true;
             plotting = true;
             updateTimer.start(50);
-            ui->testButton->setText("DisConnect");                                            // Change Connect button text, to indicate disconnected
+            ui->testButton->setText("DisConnect");                               // Change Connect button text, to indicate disconnected
             writeStatus("Connected!",last);                                      // Show message in status bar
             ui->stopPlotButton->setEnabled(true);
         }
@@ -738,46 +791,104 @@ void MainWindow::writeStatus(QString message, Status type){
 /******************************************************************************************************************/
 void MainWindow::on_checkBoxAudioEnable_clicked(bool checked)
 {
+    if(lock) {
+        writeStatus("on-going action-- wait",after);
+        return;
+    }
     if(checked!=0){
         myAudioOutput = new AudioOutput(this);
         // configure it
-        int channelCount;
-        int sampleRate;
-        int sampleSize;
-        QAudioFormat::Endian byteOrder;
-        QAudioFormat::SampleType sampleType;
-        int buffersize;
-        channelCount=ui->spinBoxAudioChannels->value();
-        sampleRate=(ui->comboBoxAudioFreq->currentText().toInt())*1000;
-        sampleSize=ui->comboBoxAudioSize->currentText().toInt();
-        switch(ui->comboBoxAudioEndian->currentText()){
-        case "little":
-            byteOrder = QAudioFormat::Endian::LittleEndian;
-            break;
-        case "big":
-            byteOrder = QAudioFormat::Endian::BigEndian;
-            break;
-        }
-        switch(ui->comboBoxAudioType->currentText()){
-        case "Unknown":
-            sampleType = QAudioFormat::SampleType::Unknown;
-            break;
-        case "SignedInt":
-            sampleType = QAudioFormat::SampleType::SignedInt;
-            break;
-        case "UnSignedInt":
-            sampleType = QAudioFormat::SampleType::UnSignedInt;
-            break;
-        case "Float":
-            sampleType = QAudioFormat::SampleType::Float;
-            break;
-        }
-        buffersize = ui->spinBoxAudioBuffer->value()*1024;
-        myAudioOutput->configure(channelCount,sampleRate,sampleSize,byteOrder,sampleType,buffersize);
+        audioParamaters p;
+        readAudioparameter(&p);
+        myAudioOutput->configure(p.channelCount,p.sampleRate,p.sampleSize,p.byteOrder,p.sampleType,p.buffersize);
+        myAudioOutput->createDevice();
     } else{
         if (myAudioOutput!=NULL){
             myAudioOutput->close();
             delete myAudioOutput;
         }
     }
+    lock=0;
+}
+
+/******************************************************************************************************************/
+/* Read Audio parameters */
+/******************************************************************************************************************/
+void MainWindow::readAudioparameter(audioParamaters *p)
+{
+    p->channelCount=ui->spinBoxAudioChannels->value();
+    p->sampleRate=(ui->comboBoxAudioFreq->currentText().toInt())*1000;
+    p->sampleSize=ui->comboBoxAudioSize->currentText().toInt();
+    if (ui->comboBoxAudioEndian->currentText() == "little"){
+        p->byteOrder = QAudioFormat::Endian::LittleEndian;
+    } else if (ui->comboBoxAudioEndian->currentText() == "big"){
+        p->byteOrder = QAudioFormat::Endian::BigEndian;
+    }
+    if (ui->comboBoxAudioType->currentText() == "Unknown"){
+        p->sampleType = QAudioFormat::SampleType::Unknown;
+    } else if (ui->comboBoxAudioType->currentText() == "SignedInt"){
+        p->sampleType = QAudioFormat::SampleType::SignedInt;
+    } else if (ui->comboBoxAudioType->currentText() == "UnSignedInt"){
+        p->sampleType = QAudioFormat::SampleType::UnSignedInt;
+    } else if (ui->comboBoxAudioType->currentText() == "Float"){
+        p->sampleType = QAudioFormat::SampleType::Float;
+    }
+    p->buffersize = ui->spinBoxAudioBuffer->value()*1024;
+}
+
+
+
+/******************************************************************************************************************/
+/* Set signal amplification maximum multiplier */
+/******************************************************************************************************************/
+void MainWindow::on_spinBoxAMPMult_valueChanged(int arg1)
+{
+    ui->horizontalSliderAMPL->setMaximum(arg1);
+}
+
+/******************************************************************************************************************/
+/* Set signal amplification multiplier step */
+/******************************************************************************************************************/
+void MainWindow::on_spinBoxAMPLStep_valueChanged(int arg1)
+{
+    ui->horizontalSliderAMPL->setSingleStep(arg1);
+}
+
+/******************************************************************************************************************/
+/* Set Random test signal */
+/******************************************************************************************************************/
+void MainWindow::on_radioButtonTESTRadom_clicked(bool checked)
+{
+   Q_UNUSED(checked);
+}
+
+/******************************************************************************************************************/
+/* Set Sine test signal */
+/******************************************************************************************************************/
+void MainWindow::on_radioButtonTESTSine_clicked(bool checked)
+{
+    Q_UNUSED(checked);
+}
+
+/******************************************************************************************************************/
+/* Set/Reset test */
+/******************************************************************************************************************/
+void MainWindow::on_checkBox_clicked(bool checked)
+{
+    Q_UNUSED(checked);
+    if(connected){
+        // cannot change state if connected
+        QMessageBox msgBox;
+        msgBox.setText("Please Disconnect first");
+        msgBox.exec();
+        ui->checkBox->setChecked(true); // force it back again
+    }
+}
+
+/******************************************************************************************************************/
+/* Adjust simulated period to be a multiple of frequency
+/******************************************************************************************************************/
+void MainWindow::on_spinBoxTESTFreq_valueChanged(int arg1)
+{
+    Q_UNUSED(arg1);
 }

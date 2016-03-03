@@ -33,6 +33,9 @@
 #include "myserver.h"
 #include <chrono>
 #include "audiooutput.h"
+#include "source.h"
+
+#include <math.h>
 
 #define START_MSG       '$'
 #define END_MSG         ';'
@@ -43,13 +46,21 @@
 
 using namespace std::chrono;
 namespace Ui {
-    class MainWindow;
+class MainWindow;
 }
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
+    typedef struct audioParameterss {
+        int channelCount;
+        int sampleRate;
+        int sampleSize;
+        QAudioFormat::Endian byteOrder;
+        QAudioFormat::SampleType sampleType;
+        int buffersize;
+    } audioParamaters;
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
@@ -77,10 +88,15 @@ private slots:
     void on_checkBox_clicked();                                                           // set/reset test mode
     void simulatedData();                                                                 // radom emit data in test mode
     void on_TCP_Connect_clicked();
-
     void on_testButton_clicked();
-
     void on_checkBoxAudioEnable_clicked(bool checked);
+    void on_spinBoxAMPMult_valueChanged(int arg1);
+    void on_spinBoxAMPLStep_valueChanged(int arg1);
+    void on_radioButtonTESTRadom_clicked(bool checked);
+    void on_radioButtonTESTSine_clicked(bool checked);
+    void on_checkBox_clicked(bool checked);
+
+    void on_spinBoxTESTFreq_valueChanged(int arg1);
 
 signals:
     void portOpenFail();                                                                  // Emitted when cannot open port
@@ -108,7 +124,7 @@ private:
     void createUI();                                                                      // Populate the controls
     void enableControls(bool enable);                                                     // Enable/disable controls
     void setupPlot();                                                                     // Setup the QCustomPlot
-                                                                                          // Open the inside serial port with these parameters
+    // Open the inside serial port with these parameters
     void openPort(QSerialPortInfo portInfo, int baudRate, QSerialPort::DataBits dataBits, QSerialPort::Parity parity, QSerialPort::StopBits stopBits);
     QTimer simulate;                                                                      // simulation pace timer
     MyServer *myServer;                                                                   // TCP Server
@@ -119,6 +135,12 @@ private:
     QString mFirst,mMiddle,mLast,mAfter;
     QString targetConsole;
     AudioOutput *myAudioOutput;
+    QByteArray audioBuffer;
+    int lock;
+    Source *m_Source;
+    int simulatePeriod;
+    void readAudioparameter(audioParamaters *p);
+    int min,max;
 };
 
 

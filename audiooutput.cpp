@@ -39,6 +39,9 @@ void AudioOutput::configure(int channelCount,
 
 void AudioOutput::writeData(QByteArray data)
 {
+    int size = data.count();
+    Q_UNUSED(size);
+    if (ok!=1) return;
     int readlen = audio->periodSize();
     int chunks = audio->bytesFree() / readlen;
 
@@ -48,10 +51,12 @@ void AudioOutput::writeData(QByteArray data)
         int len = middle.size();
         data.remove(0, len);
 
-        if (len)
+        if (len){
             device->write(middle);
+        }
 
         chunks--;
+        if(len<readlen) break;
     }
 }
 
@@ -61,3 +66,13 @@ void AudioOutput::close(){
         audio->deleteLater();
     }
 }
+
+int AudioOutput::bytesFree(){
+    return audio->bytesFree();
+}
+
+int AudioOutput::durationForBytes(int bytes){
+    return audio->format().durationForBytes(bytes);
+}
+
+

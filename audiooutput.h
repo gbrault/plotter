@@ -3,7 +3,6 @@
 
 #include <QtCore>
 #include <QtMultimedia>
-#include "common.h"
 
 class AudioOutput : public QObject
 {
@@ -14,7 +13,8 @@ public:
     void createDevice();
     void configure(int channelCount, int sampleRate, int sampleSize, QAudioFormat::Endian byteOrder, QAudioFormat::SampleType sampleType , int buffersize);
     void close();
-
+    int bytesFree();
+    int durationForBytes(int bytes);
 signals:
 
 public slots:
