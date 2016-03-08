@@ -61,13 +61,17 @@ MainWindow::MainWindow(QWidget *parent) :
     lastTime = duration_cast< milliseconds >(
                 system_clock::now().time_since_epoch()
             );
-    lastdataPointNumber=0;
+    lastdataPointAcquired=0;
     targetConsole="";
     myAudioOutput=NULL;
     audioBuffer.clear();
     lock=0;
-    simulatePeriod=10;
+    emitPeriod=10;
     m_Source = NULL;
+    realTime=-1;
+    SerialBuffer=NULL;
+    datapointAcquired=0;
+    SerialRecieve = false;
 }
 /******************************************************************************************************************/
 
@@ -147,7 +151,9 @@ void MainWindow::createUI()
     ui->comboBaud->addItem("38400");
     ui->comboBaud->addItem("57600");
     ui->comboBaud->addItem("115200");
-    ui->comboBaud->setCurrentIndex(7);                                                    // Select 9600 bits by default
+    ui->comboBaud->addItem("230400");
+    ui->comboBaud->addItem("460800");
+    ui->comboBaud->setCurrentIndex(8);                                                    // Select 9600 bits by default
 
     ui->comboData->addItem("8 bits");                                                     // Populate data bits combo box
     ui->comboData->addItem("7 bits");
@@ -222,7 +228,7 @@ void MainWindow::openPort(QSerialPortInfo portInfo, int baudRate, QSerialPort::D
     connect(this, SIGNAL(portOpenOK()), this, SLOT(portOpenedSuccess()));                 // Connect port signals to GUI slots
     connect(this, SIGNAL(portOpenFail()), this, SLOT(portOpenedFail()));
     connect(this, SIGNAL(portClosed()), this, SLOT(onPortClosed()));
-    connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+    connect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
     connect(serialPort, SIGNAL(readyRead()), this, SLOT(readData()));
 
     if(serialPort->open(QIODevice::ReadWrite) ) {
@@ -251,61 +257,7 @@ void MainWindow::on_comboPort_currentIndexChanged(const QString &arg1)
 /******************************************************************************************************************/
 
 
-/******************************************************************************************************************/
-/* Connect Button clicked slot; handles connect and disconnect */
-/******************************************************************************************************************/
-void MainWindow::on_connectButton_clicked()
-{
-    if(!ui->checkBox->isChecked()){
-        if(connected) {                                                                       // If application is connected, disconnect
-            serialPort->close();                                                              // Close serial port
-            emit portClosed();                                                                // Notify application
-            delete serialPort;                                                                // Delete the pointer
-            serialPort = NULL;                                                                // Assign NULL to dangling pointer
-            ui->connectButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-            writeStatus("Disconnected!",last);                                               // Show message in status bar
-            connected = false;                                                                // Set connected status flag to false
-            plotting = false;                                                                 // Not plotting anymore
-            receivedData.clear();                                                             // Clear received string
-            ui->stopPlotButton->setEnabled(false);                                            // Take care of controls
-            ui->saveJPGButton->setEnabled(false);
-            enableControls(true);
-        } else {                                                                              // If application is not connected, connect
-            // Get parameters from controls first
-            QSerialPortInfo portInfo(ui->comboPort->currentText());                           // Temporary object, needed to create QSerialPort
-            int baudRate = ui->comboBaud->currentText().toInt();                              // Get baud rate from combo box
-            int dataBitsIndex = ui->comboData->currentIndex();                                // Get index of data bits combo box
-            int parityIndex = ui->comboParity->currentIndex();                                // Get index of parity combo box
-            int stopBitsIndex = ui->comboStop->currentIndex();                                // Get index of stop bits combo box
-            QSerialPort::DataBits dataBits;
-            QSerialPort::Parity parity;
-            QSerialPort::StopBits stopBits;
 
-            if(dataBitsIndex == 0) {                                                          // Set data bits according to the selected index
-                dataBits = QSerialPort::Data8;
-            } else {
-                dataBits = QSerialPort::Data7;
-            }
-
-            if(parityIndex == 0) {                                                            // Set parity according to the selected index
-                parity = QSerialPort::NoParity;
-            } else if(parityIndex == 1) {
-                parity = QSerialPort::OddParity;
-            } else {
-                parity = QSerialPort::EvenParity;
-            }
-
-            if(stopBitsIndex == 0) {                                                          // Set stop bits according to the selected index
-                stopBits = QSerialPort::OneStop;
-            } else {
-                stopBits = QSerialPort::TwoStop;
-            }
-
-            serialPort = new QSerialPort(portInfo, 0);                                        // Use local instance of QSerialPort; does not crash
-            openPort(portInfo, baudRate, dataBits, parity, stopBits);                         // Open serial port and connect its signals
-        }
-    }
-}
 /******************************************************************************************************************/
 
 
@@ -352,7 +304,7 @@ void MainWindow::onPortClosed()
     disconnect(this, SIGNAL(portOpenOK()), this, SLOT(portOpenedSuccess()));             // Disconnect port signals to GUI slots
     disconnect(this, SIGNAL(portOpenFail()), this, SLOT(portOpenedFail()));
     disconnect(this, SIGNAL(portClosed()), this, SLOT(onPortClosed()));
-    disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+    disconnect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
 }
 
 
@@ -361,13 +313,13 @@ void MainWindow::onPortClosed()
 /******************************************************************************************************************/
 void MainWindow::replot()
 {
-    if(dataPointNumber!=lastdataPointNumber){
+    if(datapointAcquired!=lastdataPointAcquired){
         milliseconds now = duration_cast< milliseconds >(
                     system_clock::now().time_since_epoch()
                     );
         milliseconds duration = now-lastTime;
-        double speed = (((dataPointNumber-lastdataPointNumber) * 1.0)/(duration.count() * 1.0))*1000;
-        lastdataPointNumber = dataPointNumber;
+        double speed = (((datapointAcquired-lastdataPointAcquired) * 1.0)/(duration.count() * 1.0))*1000;
+        lastdataPointAcquired = datapointAcquired;
         lastTime=now;
         char buf[20];
         sprintf(buf,"%5.3f",speed);
@@ -403,10 +355,10 @@ void MainWindow::on_stopPlotButton_clicked()
 /******************************************************************************************************************/
 /* Slot for new data from serial port . Data is comming in QStringList and needs to be parsed */
 /******************************************************************************************************************/
-void MainWindow::onNewDataArrived(QStringList newData)
+void MainWindow::onNewDataArrived(QList<int> newData)
 {
     if(plotting) { // to-do: multiple plot...
-        int value0 = newData[0].toInt() * ui->horizontalSliderAMPL->value();
+        int value0 = newData[0] * ui->horizontalSliderAMPL->value();
         if (min>value0){
             min=value0;
             if(ui->checkBoxAutoScale->isChecked()){
@@ -429,18 +381,18 @@ void MainWindow::onNewDataArrived(QStringList newData)
             ui->plot->graph(0)->addData(dataPointNumber, value0);
             ui->plot->graph(0)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             if(dataListSize > 1){
-                ui->plot->graph(1)->addData(dataPointNumber, newData[1].toInt());
+                ui->plot->graph(1)->addData(dataPointNumber, newData[1]);
                 ui->plot->graph(1)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             }
         } else if(numberOfAxes == 3) {
             ui->plot->graph(0)->addData(dataPointNumber,value0);
             ui->plot->graph(0)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             if(dataListSize > 1) {
-                ui->plot->graph(1)->addData(dataPointNumber, newData[1].toInt());
+                ui->plot->graph(1)->addData(dataPointNumber, newData[1]);
                 ui->plot->graph(1)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             }
             if(dataListSize > 2) {
-                ui->plot->graph(2)->addData(dataPointNumber, newData[2].toInt());
+                ui->plot->graph(2)->addData(dataPointNumber, newData[2]);
                 ui->plot->graph(2)->removeDataBefore(dataPointNumber - NUMBER_OF_POINTS);
             }
         } else return;
@@ -478,10 +430,13 @@ void MainWindow::readData()
 {
     if(serialPort->bytesAvailable()) {                                                    // If any bytes are available
         QByteArray Data = serialPort->readAll();                                          // Read all data in QByteArray
-        if(Data.count()!=0)
+        if(Data.count()!=0){
             readDataTcp(Data);
+        }
     }
 }
+
+
 /******************************************************************************************************************/
 /* Read data for TCP port */
 /******************************************************************************************************************/
@@ -489,10 +444,24 @@ void  MainWindow::readDataTcp(QByteArray Data){
     int i;
     QByteArray data;
 
-    for(i=0;i<Data.count();i++){
-        data.clear();
-        data.append(Data.at(i));
-        processData(data);
+    if(ui->radioButtonBinary->isChecked()){
+        SerialBuffer->append(Data);
+        int n = SerialBuffer->count()/4;
+        if (n>100){  // every 100 points
+            // it's binary data 32 bits = 4 x 8 x n
+            int32_t *ptr = (int32_t *)SerialBuffer->data();
+            for(i=0;i<SerialBuffer->count()/4;i+=4){
+                m_Source->EnQueue(ptr[i],ui->checkBoxAudioEnable->isChecked());
+            }
+            datapointAcquired+=n;
+            SerialBuffer->remove(0, n*4);
+        }
+    } else {
+        for(i=0;i<Data.count();i++){
+            data.clear();
+            data.append(Data.at(i));
+            processData(data);
+        }
     }
 }
 
@@ -502,29 +471,38 @@ void  MainWindow::readDataTcp(QByteArray Data){
 void MainWindow::processData(QByteArray data)
 {
     char temp;
-    if(!data.isEmpty()) {                                                             // If the byte array is not empty
-        temp = (uint8_t)(data.at(0));                                                     // Get a '\0'-terminated char* to the data                                        // Iterate over the char*
-        switch(STATE) {                                                           // Switch the current state of the message
-        case WAIT_START:                                                          // If waiting for start [$], examine each char
+    if(!data.isEmpty()) {                                                      // If the byte array is not empty
+        temp = (uint8_t)(data.at(0));                                          // Get a '\0'-terminated char* to the data                                        // Iterate over the char*
+        switch(STATE) {                                                        // Switch the current state of the message
+        case WAIT_START:                                                       // If waiting for start [$], examine each char
             if(temp == START_MSG) {                                            // If the char is $, change STATE to IN_MESSAGE
                 STATE = IN_MESSAGE;
-                receivedData.clear();                                             // Clear temporary QString that holds the message
+                receivedData.clear();                                          // Clear temporary QString that holds the message
                 if(targetConsole.count()!=0)
                     writeStatus(targetConsole,after);
                 targetConsole.clear();
-                break;                                                            // Break out of the switch
+                break;                                                         // Break out of the switch
             } else {
                 targetConsole.append(temp);
             }
             break;
-        case IN_MESSAGE:                                                          // If state is IN_MESSAGE
+        case IN_MESSAGE:                                                       // If state is IN_MESSAGE
             if(temp == END_MSG) {                                              // If char examined is ;, switch state to END_MSG
                 STATE = WAIT_START;
-                QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
-                emit newData(incomingData);                                       // Emit signal for data received with the list
+                QStringList incomingData = receivedData.split(' ');            // Split string received from port and put it into list
+                // emit newData(incomingData);                                 // Emit signal for data received with the list
+                // save the data into the source
+                int value = incomingData[0].toInt();
+                if(abs(value)>1000000){
+                    writeStatus("noise",after);
+                    //m_Source->EnQueue(value);
+                } else{
+                    datapointAcquired++;
+                    m_Source->EnQueue(value,ui->checkBoxAudioEnable->isChecked());
+                }
                 break;
             }
-            else if(((temp>='0') && (temp<='9')) || temp==' ' ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
+            else if(((temp>='0') && (temp<='9')) || temp==' ' ) {              // If examined char is a digit, and not '$' or ';', append it to temporary string
                 receivedData.append(temp);
             }
             else if( temp=='-' || temp=='+' ) {                      // If examined char is a digit, and not '$' or ';', append it to temporary string
@@ -591,6 +569,10 @@ void MainWindow::on_resetPlotButton_clicked()
     ui->plot->yAxis->setTickStep(ui->spinYStep->value());
     */
     ui->plot->replot();
+    writeStatus("",first);
+    writeStatus("",middle);
+    writeStatus("",last);
+    writeStatus("",after);
 }
 /******************************************************************************************************************/
 
@@ -639,40 +621,164 @@ void MainWindow::on_checkBox_clicked()
 }
 
 /******************************************************************************************************************/
-/* fake data emission */
+/* depending on realTime
+ * => -1: not active
+ * => 0: simulated
+ * => 1: real time serial or TCP
+ *
+ * prepare graph and audio data
+ *
+ * This process is called periodically by emitClock()
 /******************************************************************************************************************/
-void MainWindow::simulatedData()
+void MainWindow::emitData()
 {
-    // Display curve
-    QVector<int> display;
-    m_Source->readDisplay(&display, simulatePeriod);
-    for(int i=0; i< display.count();i++){
-        char buf[100];
-        sprintf(buf,"%d",display.at(i));
-        receivedData.clear();
-        receivedData.append(buf);
-        QStringList incomingData = receivedData.split(' ');               // Split string received from port and put it into list
-        emit newData(incomingData);                                       // Emit signal for data received with the list
-    }
-
-    // plays Audio
-    if(ui->checkBoxAudioEnable->isChecked()){
-        int bytes = myAudioOutput->bytesFree();
-        if(bytes!=0){
-            int AudioDuration = myAudioOutput->durationForBytes(bytes)/1000;
-            QByteArray audio;
-            audio.resize(bytes);
-            audio.clear();
-            m_Source->readAudio(&audio,AudioDuration);
-            myAudioOutput->writeData(audio);
+    if(realTime==1){
+        // Display curve
+        QVector<int> display;
+        m_Source->DeQueue(&display, emitPeriod);
+        for(int i=0; i< display.count();i++){
+            char buf[100];
+            sprintf(buf,"%d",display.at(i));
+            receivedData.clear();
+            receivedData.append(buf);
+            QList<int> incomingData;               // Split string received from port and put it into list
+            incomingData.clear();
+            incomingData.append(display[i]);
+            emit newData(incomingData);            // Emit signal for data received with the list
+        }
+        // plays Audio
+        if(ui->checkBoxAudioEnable->isChecked()){
+            int bytes = myAudioOutput->bytesFree();
+            if(bytes!=0){
+                int AudioDuration = myAudioOutput->durationForBytes(bytes)/1000;
+                QByteArray audio;
+                audio.resize(bytes);
+                audio.clear();
+                m_Source->DeQueueAudio(&audio,AudioDuration);
+                myAudioOutput->writeData(audio);
+            }
         }
     }
+    if(realTime==0){
+        // Display curve
+        QVector<int> display;
+        m_Source->readPeriodic(&display, emitPeriod);
+        for(int i=0; i< display.count();i++){
+            char buf[100];
+            sprintf(buf,"%d",display.at(i));
+            receivedData.clear();
+            receivedData.append(buf);
+            QList<int> incomingData;               // Split string received from port and put it into list
+            incomingData.clear();
+            incomingData.append(display[i]);
+            emit newData(incomingData);            // Emit signal for data received with the list
+        }
 
-    char buf[100];
-    sprintf(buf,"d=%d,a=%d",m_Source->displayTime,m_Source->AudioTime);
-    writeStatus(buf,after);
+        // plays Audio
+        if(ui->checkBoxAudioEnable->isChecked()){
+            int bytes = myAudioOutput->bytesFree();
+            if(bytes!=0){
+                int AudioDuration = myAudioOutput->durationForBytes(bytes)/1000;
+                QByteArray audio;
+                audio.resize(bytes);
+                audio.clear();
+                m_Source->readPeriodicAudio(&audio,AudioDuration);
+                myAudioOutput->writeData(audio);
+            }
+        }
+
+        char buf[100];
+        sprintf(buf,"d=%d,a=%d",m_Source->displayTime,m_Source->AudioTime);
+        writeStatus(buf,after);
+    }
 }
+/******************************************************************************************************************/
+/* Connect Button clicked slot; handles connect and disconnect */
+/******************************************************************************************************************/
+void MainWindow::on_connectButton_clicked()
+{
+    if(!ui->checkBox->isChecked()){
+        if(connected) {
+            serialPort->write("\0",1);
+            // If application is connected, disconnect
+            serialPort->close();                                                              // Close serial port
+            emit portClosed();                                                                // Notify application
+            delete serialPort;                                                                // Delete the pointer
+            serialPort = NULL;                                                                // Assign NULL to dangling pointer
+            ui->connectButton->setText("Connect");                                            // Change Connect button text, to indicate disconnected
+            writeStatus("Disconnected!",last);                                               // Show message in status bar
+            connected = false;                                                                // Set connected status flag to false
+            plotting = false;                                                                 // Not plotting anymore
+            receivedData.clear();                                                             // Clear received string
+            ui->stopPlotButton->setEnabled(false);                                            // Take care of controls
+            ui->saveJPGButton->setEnabled(false);
+            enableControls(true);
+            realTime=-1;
+            disconnect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
+            if (SerialBuffer!=NULL) delete SerialBuffer;
+        } else {                                                                              // If application is not connected, connect
+            // Get parameters from controls first
+            QSerialPortInfo portInfo(ui->comboPort->currentText());                           // Temporary object, needed to create QSerialPort
+            int baudRate = ui->comboBaud->currentText().toInt();                              // Get baud rate from combo box
+            int dataBitsIndex = ui->comboData->currentIndex();                                // Get index of data bits combo box
+            int parityIndex = ui->comboParity->currentIndex();                                // Get index of parity combo box
+            int stopBitsIndex = ui->comboStop->currentIndex();                                // Get index of stop bits combo box
+            QSerialPort::DataBits dataBits;
+            QSerialPort::Parity parity;
+            QSerialPort::StopBits stopBits;
 
+            if(dataBitsIndex == 0) {                                                          // Set data bits according to the selected index
+                dataBits = QSerialPort::Data8;
+            } else {
+                dataBits = QSerialPort::Data7;
+            }
+
+            if(parityIndex == 0) {                                                            // Set parity according to the selected index
+                parity = QSerialPort::NoParity;
+            } else if(parityIndex == 1) {
+                parity = QSerialPort::OddParity;
+            } else {
+                parity = QSerialPort::EvenParity;
+            }
+
+            if(stopBitsIndex == 0) {                                                          // Set stop bits according to the selected index
+                stopBits = QSerialPort::OneStop;
+            } else {
+                stopBits = QSerialPort::TwoStop;
+            }
+
+            serialPort = new QSerialPort(portInfo, 0);                                        // Use local instance of QSerialPort; does not crash
+            openPort(portInfo, baudRate, dataBits, parity, stopBits);                         // Open serial port and connect its signals
+            emitClock.setInterval(emitPeriod);
+            emitClock.setSingleShot(false);
+            realTime=1;
+            QAudioFormat format;
+            audioParamaters p;
+            readAudioparameter(&p);
+            format.setByteOrder(p.byteOrder);
+            format.setChannelCount(p.channelCount);
+            format.setSampleRate(p.sampleRate);
+            format.setSampleSize(p.sampleSize);
+            format.setSampleType(p.sampleType);
+            format.setCodec("audio/pcm");
+            int Type=0;
+            if(ui->radioButtonTESTRadom->isChecked()){
+                Type=1;
+            }
+            max=min=0;
+            if (m_Source!=NULL) delete m_Source;
+            m_Source = new Source(format);
+            SerialBuffer = new QByteArray();
+            SerialBuffer->clear();
+            connect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
+            emitClock.start();
+            ui->pushButtonSerial->setText("Start Recieve");
+            SerialRecieve=false;
+            ui->pushButtonSerial->setEnabled(true);
+            serialPort->write("\0",1);
+        }
+    }
+}
 /******************************************************************************************************************/
 /* Connect TCP Server */
 /******************************************************************************************************************/
@@ -687,9 +793,32 @@ void MainWindow::on_TCP_Connect_clicked()
             connected=true;
             plotting = true;
             updateTimer.start(50);
+            emitClock.setInterval(emitPeriod);
+            emitClock.setSingleShot(false);
             ui->TCP_Connect->setText("DisConnect");                                  // Change Connect button text, to indicate disconnected
             writeStatus("TCP Connected!",last);                                      // Show message in status bar
-            connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+            connect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
+            emitClock.setInterval(emitPeriod);
+            emitClock.setSingleShot(false);
+            realTime=1;
+            QAudioFormat format;
+            audioParamaters p;
+            readAudioparameter(&p);
+            format.setByteOrder(p.byteOrder);
+            format.setChannelCount(p.channelCount);
+            format.setSampleRate(p.sampleRate);
+            format.setSampleSize(p.sampleSize);
+            format.setSampleType(p.sampleType);
+            format.setCodec("audio/pcm");
+            int Type=0;
+            if(ui->radioButtonTESTRadom->isChecked()){
+                Type=1;
+            }
+            max=min=0;
+            if (m_Source!=NULL) delete m_Source;
+            m_Source = new Source(format);
+            connect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
+            emitClock.start();
             ui->stopPlotButton->setEnabled(true);
         } else {
             if(myServer!=NULL){
@@ -699,9 +828,11 @@ void MainWindow::on_TCP_Connect_clicked()
                 connected=false;
                 plotting = false;
                 updateTimer.stop();
-                ui->TCP_Connect->setText("Connect");                                            // Change Connect button text, to indicate disconnected
-                writeStatus("Disconnected!",last);                                      // Show message in status bar
-                disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+                ui->TCP_Connect->setText("Connect");                                  // Change Connect button text, to indicate disconnected
+                writeStatus("Disconnected!",last);                                    // Show message in status bar
+                disconnect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
+                realTime=-1;
+                disconnect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
                 ui->stopPlotButton->setEnabled(false);
             }
         }
@@ -715,12 +846,13 @@ void MainWindow::on_testButton_clicked()
 {
     if(ui->checkBox->isChecked()){
         if(connected){
-            simulate.stop();
+            emitClock.stop();
             connected=false;
             ui->testButton->setText("Connect");                                     // Change Connect button text, to indicate disconnected
             writeStatus("Disconnected!",last);                                      // Show message in status bar
-            disconnect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
-            disconnect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
+            realTime=-1;
+            disconnect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
+            disconnect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
             plotting = false;
             updateTimer.stop();
             ui->stopPlotButton->setEnabled(false);
@@ -741,12 +873,13 @@ void MainWindow::on_testButton_clicked()
             }
             max=min=0;
             if (m_Source!=NULL) delete m_Source;
-            m_Source = new Source(ui->spinBoxTESTFreq->value(),simulatePeriod,ui->spinBoxTESTAmplitude->value(),format);
-            simulate.setInterval(simulatePeriod);
-            simulate.setSingleShot(false);
-            connect(&simulate, SIGNAL(timeout()), this, SLOT(simulatedData()));
-            connect(this, SIGNAL(newData(QStringList)), this, SLOT(onNewDataArrived(QStringList)));
-            simulate.start();
+            m_Source = new Source(ui->spinBoxTESTFreq->value(),emitPeriod,ui->spinBoxTESTAmplitude->value(),format);
+            emitClock.setInterval(emitPeriod);
+            emitClock.setSingleShot(false);
+            realTime=0;
+            connect(&emitClock, SIGNAL(timeout()), this, SLOT(emitData()));
+            connect(this, SIGNAL(newData(QList<int>)), this, SLOT(onNewDataArrived(QList<int>)));
+            emitClock.start();
             connected=true;
             plotting = true;
             updateTimer.start(50);
@@ -891,4 +1024,18 @@ void MainWindow::on_checkBox_clicked(bool checked)
 void MainWindow::on_spinBoxTESTFreq_valueChanged(int arg1)
 {
     Q_UNUSED(arg1);
+}
+
+void MainWindow::on_pushButtonSerial_clicked()
+{
+    if(SerialRecieve){
+        SerialRecieve=false;
+        ui->pushButtonSerial->setText("Start Receive");
+        serialPort->write("\0",1);
+
+    } else {
+        SerialRecieve=true;
+        ui->pushButtonSerial->setText("Stop Receive");
+        serialPort->write("\1",1);
+    }
 }

@@ -5,10 +5,13 @@
 #include <qendian.h>
 #include <QVector>
 #include <QAudioFormat>
+#include <QQueue>
+#include <QStack>
 
 class Source
 {
 public:
+    Source(QAudioFormat &format);
     Source(int signalFreq, int duration, int amplitude, QAudioFormat &format);
     int displayCounter,audioCounter, displayTime, AudioTime;
     QVector<int> *signal;
@@ -16,9 +19,15 @@ public:
     void SineGenerator();
     QByteArray *signalAudio;
     QAudioFormat *format;
-    int readDisplay(QVector<int> *signal, int duration);
-    qint64 readAudio(QByteArray *data, int duration);
-    int Value(char*ptr);
+    int readPeriodic(QVector<int> *signal, int duration);
+    qint64 readPeriodicAudio(QByteArray *data, int duration);
+    void fromAudio();
+    void toAudio();
+    QQueue<int> *qsignal;
+    QQueue<unsigned char> *qsignalaudio;
+    void EnQueue(int value, bool audio);
+    int DeQueue(QVector<int> *signal, int duration);
+    int DeQueueAudio(QByteArray *signal, int duration);
 };
 
 #endif // SIMULATEDSOURCE_H

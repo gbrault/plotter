@@ -65,6 +65,7 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+
 public slots:
     void readDataTcp(QByteArray Data);
 private slots:
@@ -75,7 +76,7 @@ private slots:
     void onPortClosed();                                                                  // Called when closing the port
     void replot();                                                                        // Slot for repainting the plot
     void on_stopPlotButton_clicked();                                                     // Starts and stops plotting
-    void onNewDataArrived(QStringList newData);                                           // Slot for new data from serial port
+    void onNewDataArrived(QList<int> newData);                                           // Slot for new data from serial port
     void on_spinAxesMin_valueChanged(int arg1);                                           // Changing lower limit for the plot
     void on_spinAxesMax_valueChanged(int arg1);                                           // Changing upper limit for the plot
     void readData();                                                                      // Slot for inside serial port
@@ -86,7 +87,7 @@ private slots:
     void onMouseMoveInPlot(QMouseEvent *event);                                           // Displays coordinates of mouse pointer when clicked in plot in status bar
     void on_spinPoints_valueChanged(int arg1);                                            // Spin box controls how many data points are collected and displayed
     void on_checkBox_clicked();                                                           // set/reset test mode
-    void simulatedData();                                                                 // radom emit data in test mode
+    void emitData();                                                                 // random emit data in test mode
     void on_TCP_Connect_clicked();
     void on_testButton_clicked();
     void on_checkBoxAudioEnable_clicked(bool checked);
@@ -98,11 +99,13 @@ private slots:
 
     void on_spinBoxTESTFreq_valueChanged(int arg1);
 
+    void on_pushButtonSerial_clicked();
+
 signals:
     void portOpenFail();                                                                  // Emitted when cannot open port
     void portOpenOK();                                                                    // Emitted when port is open
     void portClosed();                                                                    // Emitted when port is closed
-    void newData(QStringList data);                                                       // Emitted when new data has arrived
+    void newData(QList<int> newData);                                                       // Emitted when new data has arrived
 
 private:
     Ui::MainWindow *ui;
@@ -111,7 +114,7 @@ private:
     bool plotting;                                                                        // Status plotting variable
     int dataPointNumber;                                                                  // Keep track of data points
     milliseconds lastTime;                                                                // when the program started
-    int lastdataPointNumber;
+    int lastdataPointAcquired;
     QTimer updateTimer;                                                                   // Timer used for replotting the plot
     int numberOfAxes;                                                                     // Number of axes for the plot
     QTime timeOfFirstData;                                                                // Record the time of the first data point
@@ -126,7 +129,7 @@ private:
     void setupPlot();                                                                     // Setup the QCustomPlot
     // Open the inside serial port with these parameters
     void openPort(QSerialPortInfo portInfo, int baudRate, QSerialPort::DataBits dataBits, QSerialPort::Parity parity, QSerialPort::StopBits stopBits);
-    QTimer simulate;                                                                      // simulation pace timer
+    QTimer emitClock;                                                                      // simulation pace timer
     MyServer *myServer;                                                                   // TCP Server
     void processData(QByteArray data);
     void configurePlot();
@@ -138,9 +141,13 @@ private:
     QByteArray audioBuffer;
     int lock;
     Source *m_Source;
-    int simulatePeriod;
+    int emitPeriod;
     void readAudioparameter(audioParamaters *p);
     int min,max;
+    int realTime; // -1 not active, 0 simulated, 1 realtime (serial or tcp)
+    QByteArray *SerialBuffer;
+    int datapointAcquired;
+    bool SerialRecieve;
 };
 
 
