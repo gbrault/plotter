@@ -20,14 +20,17 @@ SOURCES += main.cpp\
     myserver.cpp \
     mythread.cpp \
     audiooutput.cpp \
-    source.cpp
+    source.cpp \
+    codec.cpp
 
 HEADERS  += mainwindow.hpp \
     		qcustomplot.h \
     myserver.h \
     mythread.h \
     audiooutput.h \
-    source.h
+    source.h \
+    codec.h \
+    Types.h
 
 
 FORMS    += mainwindow.ui

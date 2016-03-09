@@ -699,6 +699,9 @@ void MainWindow::on_connectButton_clicked()
 {
     if(!ui->checkBox->isChecked()){
         if(connected) {
+            ui->pushButtonSerial->setText("Serial RS");
+            SerialRecieve=false;
+            ui->pushButtonSerial->setEnabled(false);
             serialPort->write("\0",1);
             // If application is connected, disconnect
             serialPort->close();                                                              // Close serial port
